@@ -1,0 +1,47 @@
+fn conf_enable_metadata {
+    enable_metadata=yes
+    conf_enable_app metadata
+}
+
+fn metadata_init {
+    if (! ~ $#enable_metadata 0 ) {
+        prepare_metadata;
+        #ll_add handlers_body_foot metadata_footer
+    }
+}
+
+fn prepare_metadata {
+    metadatatable=`{mktemp -d}
+    first_dash='false'
+    finished='false'
+    ifs='
+';
+    for (b in `{cat $local_file}) {
+        if (! ~ $finished 'true') {
+            key=`{echo $b | cut -d '=' -f1}
+            if (! ~ $key '---') {
+                value=`{echo $b | cut -d '=' -f2-}
+                echo $value > $metadatatable/$key
+            }
+            if(~ $b '---'){
+                if(~ $first_dash 'true')finished='true'
+                first_dash='true'
+            }
+        }
+    }
+}
+
+fn get_metadata {
+    key=$1;
+    if (! ~ $key '') {
+        cat $metadatatable/$key
+    }
+}
+
+fn metadata_table {
+    echo '<table><tr><th>Key</th><th>Value</th></tr>'
+    for (key in `{ls -p $metadatatable}) {
+        echo '<tr><td>'^$key^'</td><td>'^`{cat $metadatatable/$key}^'</td></tr>';
+    }
+    echo '</table>'
+}
