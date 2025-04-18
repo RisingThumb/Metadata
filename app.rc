@@ -6,26 +6,31 @@ fn conf_enable_metadata {
 fn metadata_init {
     if (! ~ $#enable_metadata 0 ) {
         prepare_metadata;
-        #ll_add handlers_body_foot metadata_footer
+        #ll_add handlers_body_foot metadata_table
     }
 }
 
 fn prepare_metadata {
+    file=$local_file
+    if (! ~ $1 '') {
+        file=$1;
+    }
     metadatatable=`{mktemp -d}
     first_dash='false'
     finished='false'
     ifs='
 ';
-    for (b in `{cat $local_file}) {
-        if (! ~ $finished 'true') {
-            key=`{echo $b | cut -d '=' -f1}
-            if (! ~ $key '---') {
-                value=`{echo $b | cut -d '=' -f2-}
-                echo $value > $metadatatable/$key
-            }
-            if(~ $b '---'){
-                if(~ $first_dash 'true')finished='true'
-                first_dash='true'
+    if (~ `{head -n 1 $file} '<!---METADATA') {
+        for (line in `{cat $file}) {
+            if (! ~ $finished 'true') {
+                key=`{echo $line | cut -d '=' -f1}
+                if (! ~ $key '--->' && ! ~ $key '<!---METADATA') {
+                    value=`{echo $line | cut -d '=' -f2-}
+                    echo $value > $metadatatable/$key
+                }
+                if(~ $line '--->'){
+                    finished='true'
+                }
             }
         }
     }
@@ -38,10 +43,49 @@ fn get_metadata {
     }
 }
 
+
 fn metadata_table {
     echo '<table><tr><th>Key</th><th>Value</th></tr>'
+    # The ordering can probably be changed with some ls flags if we want control of that?
     for (key in `{ls -p $metadatatable}) {
         echo '<tr><td>'^$key^'</td><td>'^`{cat $metadatatable/$key}^'</td></tr>';
     }
     echo '</table>'
+}
+
+fn set_metadata {
+    file=$local_file
+    if (! ~ $3 '') {
+        file=$3;
+    }
+    prepare_metadata $file
+    key=$1;
+    value=$2;
+
+    if (! ~ $key '') {
+        if(! test -f $metadatatable/$key) { # If it doesn't exist, we want to put it after the metadata tag
+            sed_keyword='<!---METADATA.*'
+            sed_replace='<!---METADATA\
+'^`{echo $key^'='^$value | sed 's/[\/&]/\\&/g'}
+        }
+        if not { # If it does exist we want to replace the value
+            sed_keyword=`{echo $key^'=.*' | sed 's/[]\/$.^[]/\\&/g'}
+            sed_replace=`{echo $key^'='^$value | sed 's/[\/&]/\\&/g'}
+        }
+        sed_expression='s/'^$sed_keyword^'/'^$sed_replace^'/'
+        sed_out=`{sed -i $sed_expression $file}
+        newfile='';
+        for (a in $sed_out) {
+            newfile=$newfile^$a^'
+'
+        }
+        if (! ~ `{head -n 1 $file} '<!---METADATA') {
+            sed_replace=`{echo $key^'='^$value | sed 's/[\/&]/\\&/g'}
+            newfile='<!---METADATA
+'^$sed_replace^'
+--->
+'^$newfile
+        }
+        echo $newfile > $file
+    }
 }
