@@ -1,5 +1,8 @@
 # Metadata
 ## How and what
+
+Note, this depends upon the GNU recutils package. Make sure this is installed before use or this won't work.
+
 A werc app that provides a library of utility functions for getting metadata. Intended to be used alongside other werc apps
 
 To enable the metadata tool, add `conf_enable_metadata` to your site's `_werc/config` file. IMPORTANT: You should put this at the top level `_werc/config` file, and as the first line in it. This app needs to initialise before any werc apps that depend on it.
@@ -33,4 +36,3 @@ The 3rd parameter is optional for this, if it's not set, it will use the current
 ## Todo
 - Not 100% on the way I write the metadata with the metadata function. I don't think the seds stop fields that can break it, but for now, just avoid weird characters
 - Make the metadata table adding a debug option
-- Rewriting parts of goralog to depend on this lib

@@ -5,18 +5,22 @@ fn conf_enable_metadata {
 
 fn metadata_init {
     if (! ~ $#enable_metadata 0 ) {
+        metadatadb=$sitedir^'/_werc/metadata.rec'
+        if (! test -f $metadatadb) {
+            echo '%rec: Metadata
+%mandatory: filename' > $metadatadb;
+        }
         prepare_metadata;
         #ll_add handlers_body_foot metadata_table
     }
 }
 
 fn prepare_metadata {
+    metadatadb=$sitedir^'/_werc/metadata.rec'
     file=$local_file
     if (! ~ $1 '') {
         file=$1;
     }
-    metadatatable=`{mktemp -d}
-    first_dash='false'
     finished='false'
     ifs='
 ';
@@ -25,8 +29,15 @@ fn prepare_metadata {
             if (! ~ $finished 'true') {
                 key=`{echo $line | cut -d '=' -f1}
                 if (! ~ $key '--->' && ! ~ $key '<!---METADATA') {
+                    recexpr='filename = "'^$file^'"'
                     value=`{echo $line | cut -d '=' -f2-}
-                    echo $value > $metadatatable/$key
+                    queryoutput=`{recsel -e 'filename = '''^$file^'''' -P filename $metadatadb}
+                    if (~ $queryoutput '') {
+                        recins -t Metadata -f filename -v $file -f $key -v $value $metadatadb
+                    }
+                    if not {
+                        recset -t Metadata -e $recexpr -f $key -S $value $metadatadb
+                    }
                 }
                 if(~ $line '--->'){
                     finished='true'
@@ -36,34 +47,50 @@ fn prepare_metadata {
     }
 }
 
+# This is fine...
 fn get_metadata {
+    metadatadb=$sitedir^'/_werc/metadata.rec'
     key=$1;
+    file=$local_file
+    if (! ~ $2 '') {
+        file=$2;
+    }
     if (! ~ $key '') {
-        cat $metadatatable/$key
+        recexpr='filename = '''^$file^''''
+        recsel -e $recexpr -P $key $metadatadb
     }
 }
 
-
+# This is fine...
 fn metadata_table {
+    metadatadb=$sitedir^'/_werc/metadata.rec'
+    recexpr='filename = '''^$local_file^''''
+    metadatalist=`{recsel -e $recexpr $metadatadb}
     echo '<table><tr><th>Key</th><th>Value</th></tr>'
     # The ordering can probably be changed with some ls flags if we want control of that?
-    for (key in `{ls -p $metadatatable}) {
-        echo '<tr><td>'^$key^'</td><td>'^`{cat $metadatatable/$key}^'</td></tr>';
+    for (keyvalpair in $metadatalist) {
+        key=`{echo $keyvalpair | cut -f1 -d:};
+        val=`{echo $keyvalpair | cut -f2- -d:};
+        echo '<tr><td>'^$key^'</td><td>'^$val^'</td></tr>';
     }
     echo '</table>'
 }
 
+# Before we focus on set_metadata, prepare_metadata must be working
 fn set_metadata {
+    metadatadb=$sitedir^'/_werc/metadata.rec'
     file=$local_file
     if (! ~ $3 '') {
         file=$3;
     }
+    # Need to prepare it in
     prepare_metadata $file
     key=$1;
     value=$2;
 
     if (! ~ $key '') {
-        if(! test -f $metadatatable/$key) { # If it doesn't exist, we want to put it after the metadata tag
+        queryoutput=`{recsel -e 'filename = '''^$file^'''' -P $key $metadatadb}
+        if(~ $queryoutput '') { # If it doesn't exist, we want to put it after the metadata tag
             sed_keyword='<!---METADATA.*'
             sed_replace='<!---METADATA\
 '^`{echo $key^'='^$value | sed 's/[\/&]/\\&/g'}
@@ -72,6 +99,15 @@ fn set_metadata {
             sed_keyword=`{echo $key^'=.*' | sed 's/[]\/$.^[]/\\&/g'}
             sed_replace=`{echo $key^'='^$value | sed 's/[\/&]/\\&/g'}
         }
+        recexpr='filename = "'^$file^'"'
+        queryoutput=`{recsel -e 'filename = '''^$file^'''' -P filename $metadatadb}
+        if (~ $queryoutput '') {
+            recins -t Metadata -f filename -v $file -f $key -v $value $metadatadb
+        }
+        if not {
+            recset -t Metadata -e $recexpr -f $key -S $value $metadatadb
+        }
+
         sed_expression='s/'^$sed_keyword^'/'^$sed_replace^'/'
         sed_out=`{sed -i $sed_expression $file}
         newfile='';
