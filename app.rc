@@ -10,8 +10,6 @@ fn metadata_init {
             echo '%rec: Metadata
 %mandatory: filename' > $metadatadb;
         }
-        prepare_metadata;
-        #ll_add handlers_body_foot metadata_table
     }
 }
 
@@ -35,6 +33,8 @@ fn prepare_metadata {
                     if (~ $queryoutput '') {
                         recins -t Metadata -f filename -v $file -f $key -v $value $metadatadb
                     }
+                    # This causes all sorts of issues if hammered with multiple requests...
+                    # Needs to be reworked. Probably an additional sidebar button to refresh metadata?
                     if not {
                         recset -t Metadata -e $recexpr -f $key -S $value $metadatadb
                     }
